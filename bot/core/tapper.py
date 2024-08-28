@@ -113,7 +113,7 @@ class Tapper:
         http_client.headers['Authorization'] = "tma " + init_data
         user = await self.make_request(http_client, 'GET', endpoint="/user")
         if not user:
-            await self.make_request(http_client, 'POST', endpoint="/user/create", data={'referral_code': ref_id})
+            await self.make_request(http_client, 'POST', endpoint=f"/user/create?referral_code={ref_id}")
             await asyncio.sleep(2)
             return await self.login(http_client, init_data, ref_id)
         return user
