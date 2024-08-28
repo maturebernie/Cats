@@ -103,10 +103,9 @@ class Tapper:
     @error_handler
     async def make_request(self, http_client, method, endpoint=None, url=None, **kwargs):
         full_url = url or f"https://cats-backend-wkejfn-production.up.railway.app{endpoint or ''}"
-        async with http_client.request(method, full_url, **kwargs) as response:
-            response.raise_for_status()
-            response_json = await response.json()
-            return response_json
+        response = await http_client.request(method, full_url, **kwargs)
+        response.raise_for_status()
+        return await response.json()
     
     @error_handler
     async def login(self, http_client, init_data, ref_id):
@@ -189,28 +188,41 @@ class Tapper:
         ref_id, init_data = await self.get_tg_web_data()
         
         while True:
-            user = await self.login(http_client=http_client, init_data=init_data, ref_id=ref_id)
-            logger.info(f"{self.session_name} | User ID: {user.get('id')} | Telegram Age: {user.get('telegramAge')} | Points: {user.get('totalRewards')}")
-            data_task = await self.get_tasks(http_client=http_client)
-            if data_task is not None and data_task.get('tasks', {}):
-                for task in data_task.get('tasks'):
-                    if task['completed'] is True:
-                        continue
-                    id = task.get('id')
-                    type = task.get('type')
-                    title = task.get('title')
-                    reward = task.get('rewardPoints')
-                    type_=('check' if type == 'SUBSCRIBE_TO_CHANNEL' else 'complete')
-                    if type == 'check':
-                        await self.join_and_mute_tg_channel(link=task.get('params').get('channelUrl'))
-                        await asyncio.sleep(2)
-                    done_task = await self.done_tasks(http_client=http_client, task_id=id, type_=type_)
-                    if done_task and (done_task.get('success', False) or done_task.get('completed', False)):
-                        logger.info(f"{self.session_name} | Task <y>{title}</y> done! Reward: {reward}")
-                            
-            else:
-                logger.error(f"{self.session_name} | No tasks")
-            
+            try:
+                if http_client.closed:
+                    if proxy_conn:
+                        if not proxy_conn.closed:
+                            proxy_conn.close()
+
+                    proxy_conn = ProxyConnector().from_url(self.proxy) if self.proxy else None
+                    http_client = aiohttp.ClientSession(headers=headers, connector=proxy_conn)
+                user = await self.login(http_client=http_client, init_data=init_data, ref_id=ref_id)
+                logger.info(f"{self.session_name} | User ID: {user.get('id')} | Telegram Age: {user.get('telegramAge')} | Points: {user.get('totalRewards')}")
+                data_task = await self.get_tasks(http_client=http_client)
+                if data_task is not None and data_task.get('tasks', {}):
+                    for task in data_task.get('tasks'):
+                        if task['completed'] is True:
+                            continue
+                        id = task.get('id')
+                        type = task.get('type')
+                        title = task.get('title')
+                        reward = task.get('rewardPoints')
+                        type_=('check' if type == 'SUBSCRIBE_TO_CHANNEL' else 'complete')
+                        if type == 'check':
+                            await self.join_and_mute_tg_channel(link=task.get('params').get('channelUrl'))
+                            await asyncio.sleep(2)
+                        done_task = await self.done_tasks(http_client=http_client, task_id=id, type_=type_)
+                        if done_task and (done_task.get('success', False) or done_task.get('completed', False)):
+                            logger.info(f"{self.session_name} | Task <y>{title}</y> done! Reward: {reward}")
+                                
+                else:
+                    logger.error(f"{self.session_name} | No tasks")
+            finally:
+                if http_client and not http_client.closed:
+                    await http_client.close()
+                    if proxy_conn and not proxy_conn.closed:
+                            proxy_conn.close()
+                
             sleep_time = random.randint(settings.SLEEP_TIME[0], settings.SLEEP_TIME[1])
             logger.info(f"{self.session_name} | Sleep <y>{sleep_time}s</y>")
             await asyncio.sleep(delay=sleep_time)
