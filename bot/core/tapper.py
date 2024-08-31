@@ -9,11 +9,10 @@ from pyrogram import Client
 from pyrogram.errors import Unauthorized, UserDeactivated, AuthKeyUnregistered, FloodWait
 from pyrogram.raw.functions.messages import RequestAppWebView
 from pyrogram.raw.functions import account
-import json
 from pyrogram.raw.types import InputBotAppShortName, InputNotifyPeer, InputPeerNotifySettings
 from .agents import generate_random_user_agent
 from bot.config import settings
-from typing import Any, Callable
+from typing import Callable
 import functools
 from bot.utils import logger
 from bot.exceptions import InvalidSession
@@ -196,6 +195,9 @@ class Tapper:
 
                     proxy_conn = ProxyConnector().from_url(self.proxy) if self.proxy else None
                     http_client = aiohttp.ClientSession(headers=headers, connector=proxy_conn)
+                    if settings.FAKE_USERAGENT:            
+                        http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
+
                 user = await self.login(http_client=http_client, init_data=init_data, ref_id=ref_id)
                 logger.info(f"{self.session_name} | User ID: {user.get('id')} | Telegram Age: {user.get('telegramAge')} | Points: {user.get('totalRewards')}")
                 data_task = await self.get_tasks(http_client=http_client)

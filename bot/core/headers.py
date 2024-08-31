@@ -1,8 +1,9 @@
 headers = {
     'Pragma': 'no-cache',
     'Cache-Control': 'no-cache',
-    'Sec-Ch-Ua': '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
-    'Sec-Ch-Ua-Mobile': '0',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-A515F Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/125.0.6422.165 Mobile Safari/537.36',
+    'Sec-Ch-Ua': '"Android WebView";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+    'Sec-Ch-Ua-Mobile': '?1',
     'Sec-Ch-Ua-Platform': '"Android"',
     'Upgrade-Insecure-Requests': '0',
     'Sec-Fetch-User': '0',
