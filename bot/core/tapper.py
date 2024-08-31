@@ -185,7 +185,12 @@ class Tapper:
             http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
 
         ref_id, init_data = await self.get_tg_web_data()
-        
+        if not init_data:
+            if not http_client.closed:
+                await http_client.close()
+            if proxy_conn:
+                if not proxy_conn.closed:
+                    proxy_conn.close()
         while True:
             try:
                 if http_client.closed:
@@ -223,6 +228,7 @@ class Tapper:
                 if proxy_conn:
                     if not proxy_conn.closed:
                         proxy_conn.close()
+            
             except InvalidSession as error:
                 raise error
 
