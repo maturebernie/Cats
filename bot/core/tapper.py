@@ -7,6 +7,7 @@ import uuid
 
 import aiohttp
 import io
+import mimetypes
 from aiohttp_proxy import ProxyConnector
 from better_proxy import Proxy
 from datetime import datetime, timezone, timedelta
@@ -142,11 +143,16 @@ class Tapper:
                 random_image = random.choice(image_files)
                 image_path = os.path.join(img_folder, random_image)
                 
+                mime_type, _ = mimetypes.guess_type(image_path)
+                if not mime_type:
+                    mime_type = 'application/octet-stream'
+                
+                
                 boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
                 form_data = (
                     f'--{boundary}\r\n'
-                    f'Content-Disposition: form-data; name="photo"; filename="5e65cbd3-2481-4f49-a362-627cf7dc427d.jpeg"\r\n'
-                    f'Content-Type: image/jpeg\r\n\r\n'
+                    f'Content-Disposition: form-data; name="photo"; filename="{random_image}"\r\n'
+                    f'Content-Type: {mime_type}\r\n\r\n'
                 ).encode('utf-8')
                 
                 async with aiofiles.open(image_path, 'rb') as file:
