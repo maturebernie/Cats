@@ -104,7 +104,7 @@ class Tapper:
             logger.error(f"{self.session_name} | Unknown error: {error}")
             await asyncio.sleep(delay=3)
 
-    
+    @error_handler
     async def make_request(self, http_client, method, endpoint=None, url=None, **kwargs):
         full_url = url or f"https://cats-backend-cxblew-prod.up.railway.app{endpoint or ''}"
         response = await http_client.request(method, full_url, **kwargs)
@@ -235,12 +235,7 @@ class Tapper:
                 
         proxy_conn = ProxyConnector().from_url(self.proxy) if self.proxy else None
         http_client = aiohttp.ClientSession(headers=headers, connector=proxy_conn)
-        if self.proxy:
-            await self.check_proxy(http_client=http_client)
         
-        if settings.FAKE_USERAGENT:            
-            http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
-
         ref_id, init_data = await self.get_tg_web_data()
         if not init_data:
             if not http_client.closed:
@@ -248,6 +243,13 @@ class Tapper:
             if proxy_conn:
                 if not proxy_conn.closed:
                     proxy_conn.close()
+
+        if self.proxy:
+            await self.check_proxy(http_client=http_client)
+        
+        if settings.FAKE_USERAGENT:            
+            http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
+
         while True:
             try:
                 if http_client.closed:
@@ -261,7 +263,7 @@ class Tapper:
                         http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
 
                 user = await self.login(http_client=http_client, init_data=init_data, ref_id=ref_id)
-                if user is None:
+                if not user:
                     logger.error(f"{self.session_name} | Failed to login")
                     await http_client.close()
                     if proxy_conn:
@@ -269,7 +271,7 @@ class Tapper:
                             proxy_conn.close()
                     continue
                 
-                logger.info(f"{self.session_name} | y>Successfully logged in</y>")
+                logger.info(f"{self.session_name} | <y>Successfully logged in</y>")
                 logger.info(f"{self.session_name} | User ID: <y>{user.get('id')}</y> | Telegram Age: <y>{user.get('telegramAge')}</y> | Points: <y>{user.get('totalRewards')}</y>")
                 data_task = await self.get_tasks(http_client=http_client)
                 if data_task is not None and data_task.get('tasks', {}):
