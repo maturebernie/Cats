@@ -169,7 +169,7 @@ class Tapper:
                 time_left = timedelta(hours=24) - time_difference
                 hours, remainder = divmod(time_left.seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
-                logger.info(f"{self.session_name} | Time left until next avatar upload: <y>{hours}</y> hours, <y>{minutes}</y> minutes, and <y>{seconds}</y> seconds")
+                logger.info(f"{self.session_name} | Time remaining until next avatar upload: <y>{hours}</y> hours, <y>{minutes}</y> minutes, and <y>{seconds}</y> seconds")
                 return None   
     
     async def join_and_mute_tg_channel(self, link: str):
