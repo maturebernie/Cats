@@ -127,6 +127,18 @@ class Tapper:
         if avatar_info:
             attempt_time_str = avatar_info.get('attemptTime', None)
             if not attempt_time_str:
+                time_difference = timedelta(hours=25)
+            else:
+                attempt_time = datetime.fromisoformat(attempt_time_str.replace('Z', '+00:00'))
+                current_time = datetime.now(timezone.utc)
+                next_day_3am = (attempt_time + timedelta(days=1)).replace(hour=3, minute=0, second=0, microsecond=0)
+                
+                if current_time >= next_day_3am:
+                    time_difference = timedelta(hours=25)
+                else:
+                    time_difference = next_day_3am - current_time
+
+            if time_difference > timedelta(hours=24):
                 img_folder = 'bot/img'
                 image_files = [f for f in os.listdir(img_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
                 
@@ -140,7 +152,6 @@ class Tapper:
                 mime_type, _ = mimetypes.guess_type(image_path)
                 if not mime_type:
                     mime_type = 'application/octet-stream'
-                
                 
                 boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
                 form_data = (
@@ -160,7 +171,10 @@ class Tapper:
                 avatar_info = await self.make_request(http_client, 'GET', endpoint="/user/avatar")
                 return response.get('rewards', 0)
             else:
-                return None   
+                hours, remainder = divmod(time_difference.seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                logger.info(f"{self.session_name} | Time until next avatar upload: <y>{hours}</y> hours, <y>{minutes}</y> minutes, and <y>{seconds}</y> seconds")
+                return None
     
     async def join_and_mute_tg_channel(self, link: str):
         await asyncio.sleep(delay=15)
