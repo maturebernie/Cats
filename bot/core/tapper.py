@@ -126,13 +126,7 @@ class Tapper:
         avatar_info = await self.make_request(http_client, 'GET', endpoint="/user/avatar")
         if avatar_info:
             attempt_time_str = avatar_info.get('attemptTime', None)
-            if attempt_time_str is None:
-                time_difference = timedelta(hours=25)
-            else:
-                attempt_time = datetime.fromisoformat(attempt_time_str.replace('Z', '+00:00'))
-                current_time = datetime.now(timezone.utc)
-                time_difference = attempt_time - current_time
-            if time_difference > timedelta(hours=24):
+            if not attempt_time_str:
                 img_folder = 'bot/img'
                 image_files = [f for f in os.listdir(img_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
                 
@@ -166,10 +160,6 @@ class Tapper:
                 avatar_info = await self.make_request(http_client, 'GET', endpoint="/user/avatar")
                 return response.get('rewards', 0)
             else:
-                time_left = timedelta(hours=24) - time_difference
-                hours, remainder = divmod(time_left.seconds, 3600)
-                minutes, seconds = divmod(remainder, 60)
-                logger.info(f"{self.session_name} | Time passed since last avatar upload: <y>{hours}</y> hours, <y>{minutes}</y> minutes, and <y>{seconds}</y> seconds")
                 return None   
     
     async def join_and_mute_tg_channel(self, link: str):
