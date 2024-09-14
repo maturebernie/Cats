@@ -287,9 +287,9 @@ class Tapper:
                         title = task.get('title')
                         reward = task.get('rewardPoints')
                         type_=('check' if type == 'SUBSCRIBE_TO_CHANNEL' else 'complete')
-                        if type_ == 'check':
-                            await self.join_and_mute_tg_channel(link=task.get('params').get('channelUrl'))
-                            await asyncio.sleep(2)
+                        #if type_ == 'check':
+                        #    await self.join_and_mute_tg_channel(link=task.get('params').get('channelUrl'))
+                        #    await asyncio.sleep(2)
                         done_task = await self.done_tasks(http_client=http_client, task_id=id, type_=type_)
                         if done_task and (done_task.get('success', False) or done_task.get('completed', False)):
                             logger.info(f"{self.session_name} | Task <y>{title}</y> done! Reward: {reward}")
