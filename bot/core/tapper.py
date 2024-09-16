@@ -121,7 +121,7 @@ class Tapper:
             return await self.login(http_client, init_data, ref_id)
         return user
     
-    #@error_handler
+    @error_handler
     async def send_cats(self, http_client):
         avatar_info = await self.make_request(http_client, 'GET', endpoint="/user/avatar")
         if avatar_info:
@@ -168,7 +168,10 @@ class Tapper:
                 headers = http_client.headers.copy()
                 headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
                 response = await self.make_request(http_client, 'POST', endpoint="/user/avatar/upgrade", data=form_data, headers=headers)
-                return response.get('rewards', 0)
+                if response:
+                    return response.get('rewards', 0)
+                else:
+                    return None
             else:
                 hours, remainder = divmod(time_difference.seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
