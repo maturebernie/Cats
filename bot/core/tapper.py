@@ -139,37 +139,33 @@ class Tapper:
                     time_difference = next_day_3am - current_time
 
             if time_difference > timedelta(hours=24):
-                img_folder = 'bot/img'
-                image_files = [f for f in os.listdir(img_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                timestamp = int(datetime.now().timestamp() * 1000)
+                image_url = f"https://cataas.com/cat?timestamp={timestamp}"
                 
-                if not image_files:
-                    logger.info(f"{self.session_name} | No image files found in the 'bot/img' folder")
-                    return None
-                
-                random_image = random.choice(image_files)
-                image_path = os.path.join(img_folder, random_image)
-                
-                mime_type, _ = mimetypes.guess_type(image_path)
-                if not mime_type:
-                    mime_type = 'application/octet-stream'
-                
-                boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
-                form_data = (
-                    f'--{boundary}\r\n'
-                    f'Content-Disposition: form-data; name="photo"; filename="{random_image}"\r\n'
-                    f'Content-Type: {mime_type}\r\n\r\n'
-                ).encode('utf-8')
-                
-                async with aiofiles.open(image_path, 'rb') as file:
-                    file_content = await file.read()
-                    form_data += file_content
-                
-                form_data += f'\r\n--{boundary}--\r\n'.encode('utf-8')
-                headers = http_client.headers.copy()
-                headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
-                response = await self.make_request(http_client, 'POST', endpoint="/user/avatar/upgrade", data=form_data, headers=headers)
-                avatar_info = await self.make_request(http_client, 'GET', endpoint="/user/avatar")
-                return response.get('rewards', 0)
+                async with http_client.get(image_url, headers={
+                    "accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                    "accept-language": "en-US,en;q=0.9,ru;q=0.8",
+                    "sec-ch-ua": "\"Not;A=Brand\";v=\"24\", \"Chromium\";v=\"128\"",
+                    "sec-ch-ua-mobile": "?0",
+                    "sec-ch-ua-platform": "\"macOS\"",
+                    "sec-fetch-dest": "image",
+                    "sec-fetch-mode": "no-cors",
+                    "sec-fetch-site": "cross-site"
+                }) as resp:
+                    if resp.status == 200:
+                        image_content = await resp.read()
+                        
+                        boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
+                        form_data = aiohttp.FormData(boundary=boundary)
+                        form_data.add_field('photo', image_content, filename=f'{uuid.uuid4().hex}.jpg', content_type='image/jpeg')
+                        
+                        headers = http_client.headers.copy()
+                        headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
+                        response = await self.make_request(http_client, 'POST', endpoint="/user/avatar/upgrade", data=form_data, headers=headers)
+                        return response.get('rewards', 0)
+                    else:
+                        logger.error(f"{self.session_name} | Failed to fetch image from cataas.com")
+                        return None
             else:
                 hours, remainder = divmod(time_difference.seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
@@ -184,36 +180,41 @@ class Tapper:
                 await self.tg_client.connect()
             except Exception as error:
                 logger.error(f"{self.session_name} | (Task) Connect failed: {error}")
+                return
+
         try:
-            chat = await self.tg_client.get_chat(link)
+            try:
+                chat = await self.tg_client.get_chat(link)
+            except Exception:
+                # Fallback to join_chat if get_chat fails
+                chat = await self.tg_client.join_chat(link)
+            
             chat_username = chat.username if chat.username else link
             chat_id = chat.id
-            try:
-                await self.tg_client.get_chat_member(chat_username, "me")
-            except Exception as error:
-                if error.ID == 'USER_NOT_PARTICIPANT':
-                    await asyncio.sleep(delay=3)
-                    response = await self.tg_client.join_chat(link)
-                    logger.info(f"{self.session_name} | Joined to channel: <y>{response.username}</y>")
-                    
-                    try:
-                        peer = await self.tg_client.resolve_peer(chat_id)
-                        await self.tg_client.invoke(account.UpdateNotifySettings(
-                            peer=InputNotifyPeer(peer=peer),
-                            settings=InputPeerNotifySettings(mute_until=2147483647)
-                        ))
-                        logger.info(f"{self.session_name} | Successfully muted chat <y>{chat_username}</y>")
-                    except Exception as e:
-                        logger.info(f"{self.session_name} | (Task) Failed to mute chat <y>{chat_username}</y>: {str(e)}")
-                    
-                    
-                else:
-                    logger.error(f"{self.session_name} | (Task) Error while checking TG group: <y>{chat_username}</y>")
 
+            try:
+                await self.tg_client.get_chat_member(chat_id, "me")
+                logger.info(f"{self.session_name} | Already a member of {chat_username}")
+            except Exception:
+                response = await self.tg_client.join_chat(link)
+                logger.info(f"{self.session_name} | Joined channel: <y>{response.username}</y>")
+
+            try:
+                peer = await self.tg_client.resolve_peer(chat_id)
+                await self.tg_client.invoke(account.UpdateNotifySettings(
+                    peer=InputNotifyPeer(peer=peer),
+                    settings=InputPeerNotifySettings(mute_until=2147483647)
+                ))
+                logger.info(f"{self.session_name} | Successfully muted chat <y>{chat_username}</y>")
+            except Exception as e:
+                logger.info(f"{self.session_name} | (Task) Failed to mute chat <y>{chat_username}</y>: {str(e)}")
+
+        except Exception as error:
+            logger.error(f"{self.session_name} | (Task) Error while joining/muting channel: {error}")
+
+        finally:
             if self.tg_client.is_connected:
                 await self.tg_client.disconnect()
-        except Exception as error:
-            logger.error(f"{self.session_name} | (Task) Error while join tg channel: {error}")
     
     @error_handler
     async def get_tasks(self, http_client):
