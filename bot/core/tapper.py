@@ -121,7 +121,7 @@ class Tapper:
             return await self.login(http_client, init_data, ref_id)
         return user
     
-    @error_handler
+    #@error_handler
     async def send_cats(self, http_client):
         avatar_info = await self.make_request(http_client, 'GET', endpoint="/user/avatar")
         if avatar_info:
@@ -139,10 +139,7 @@ class Tapper:
                     time_difference = next_day_3am - current_time
 
             if time_difference > timedelta(hours=24):
-                timestamp = int(datetime.now().timestamp() * 1000)
-                image_url = f"https://cataas.com/cat?timestamp={timestamp}"
-                
-                async with http_client.get(image_url, headers={
+                response = await http_client.get(f"https://cataas.com/cat?timestamp={int(datetime.now().timestamp() * 1000)}", headers={
                     "accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
                     "accept-language": "en-US,en;q=0.9,ru;q=0.8",
                     "sec-ch-ua": "\"Not;A=Brand\";v=\"24\", \"Chromium\";v=\"128\"",
@@ -151,21 +148,27 @@ class Tapper:
                     "sec-fetch-dest": "image",
                     "sec-fetch-mode": "no-cors",
                     "sec-fetch-site": "cross-site"
-                }) as resp:
-                    if resp.status == 200:
-                        image_content = await resp.read()
-                        
-                        boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
-                        form_data = aiohttp.FormData(boundary=boundary)
-                        form_data.add_field('photo', image_content, filename=f'{uuid.uuid4().hex}.jpg', content_type='image/jpeg')
-                        
-                        headers = http_client.headers.copy()
-                        headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
-                        response = await self.make_request(http_client, 'POST', endpoint="/user/avatar/upgrade", data=form_data, headers=headers)
-                        return response.get('rewards', 0)
-                    else:
-                        logger.error(f"{self.session_name} | Failed to fetch image from cataas.com")
-                        return None
+                })
+                if not response and response.status not in [200, 201]:
+                    logger.error(f"{self.session_name} | Failed to fetch image from cataas.com")
+                    return None
+                
+                image_content = await response.read()
+                    
+                boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
+                form_data = (
+                    f'--{boundary}\r\n'
+                    f'Content-Disposition: form-data; name="photo"; filename="{uuid.uuid4().hex}.jpg"\r\n'
+                    f'Content-Type: image/jpeg\r\n\r\n'
+                ).encode('utf-8')
+                
+                form_data += image_content
+                form_data += f'\r\n--{boundary}--\r\n'.encode('utf-8')
+                
+                headers = http_client.headers.copy()
+                headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
+                response = await self.make_request(http_client, 'POST', endpoint="/user/avatar/upgrade", data=form_data, headers=headers)
+                return response.get('rewards', 0)
             else:
                 hours, remainder = divmod(time_difference.seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
