@@ -1,20 +1,15 @@
 import asyncio
-import os
 import random
-import aiofiles
 from urllib.parse import unquote
 import uuid
 
 import aiohttp
-import io
-import mimetypes
 from aiohttp_proxy import ProxyConnector
 from better_proxy import Proxy
 from datetime import datetime, timezone, timedelta
 from pyrogram import Client
 from pyrogram.errors import Unauthorized, UserDeactivated, AuthKeyUnregistered, FloodWait
 from pyrogram.raw.functions.messages import RequestAppWebView
-from pyrogram.errors import UsernameNotOccupied
 from pyrogram.raw.functions import account
 from pyrogram.raw.types import InputBotAppShortName, InputNotifyPeer, InputPeerNotifySettings
 from .agents import generate_random_user_agent
@@ -107,19 +102,18 @@ class Tapper:
 
     @error_handler
     async def make_request(self, http_client, method, endpoint=None, url=None, **kwargs):
-        full_url = url or f"https://api.catshouse.club{endpoint or ''}"
-        response = await http_client.request(method, full_url, **kwargs)
+        response = await http_client.request(method, url or f"https://api.catshouse.club{endpoint or ''}", **kwargs)
         response.raise_for_status()
         return await response.json()
     
     @error_handler
-    async def login(self, http_client, init_data, ref_id):
-        http_client.headers['Authorization'] = "tma " + init_data
+    async def login(self, http_client, ref_id):
         user = await self.make_request(http_client, 'GET', endpoint="/user")
         if not user:
+            logger.info(f"{self.session_name} | User not found. Registering...")
             await self.make_request(http_client, 'POST', endpoint=f"/user/create?referral_code={ref_id}")
             await asyncio.sleep(2)
-            return await self.login(http_client, init_data, ref_id)
+            return await self.login(http_client, ref_id)
         return user
     
     @error_handler
@@ -270,8 +264,10 @@ class Tapper:
                     http_client = aiohttp.ClientSession(headers=headers, connector=proxy_conn)
                     if settings.FAKE_USERAGENT:            
                         http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
-
-                user = await self.login(http_client=http_client, init_data=init_data, ref_id=ref_id)
+                
+                http_client.headers['Authorization'] = f"tma {init_data}"
+                
+                user = await self.login(http_client=http_client, ref_id=ref_id)
                 if not user:
                     logger.error(f"{self.session_name} | Failed to login")
                     await http_client.close()
