@@ -174,47 +174,6 @@ class Tapper:
                 return None
     
     @error_handler
-    async def join_and_mute_tg_channel(self, link: str):
-        await asyncio.sleep(delay=random.randint(15, 30))
-        
-        if not self.tg_client.is_connected:
-            await self.tg_client.connect()
-            
-        parsed_link = link if 'https://t.me/+' in link else link[13:]
-        try:
-            try:
-                chat = await self.tg_client.join_chat(parsed_link)
-                logger.info(f"{self.session_name} | Successfully joined chat <y>{chat.title}</y>")
-            except Exception as join_error:
-                if "USER_ALREADY_PARTICIPANT" in str(join_error):
-                    logger.info(f"{self.session_name} | Already a member of the chat: {link}")
-                    chat = await self.tg_client.get_chat(parsed_link)
-                else:
-                    
-                    raise join_error
-
-            chat_id = chat.id
-            chat_title = getattr(chat, 'title', link)
-
-            await asyncio.sleep(random.randint(5, 10))
-
-            peer = await self.tg_client.resolve_peer(chat_id)
-            await self.tg_client.invoke(account.UpdateNotifySettings(
-                peer=InputNotifyPeer(peer=peer),
-                settings=InputPeerNotifySettings(mute_until=2147483647)
-            ))
-            logger.info(f"{self.session_name} | Successfully muted chat <y>{chat_title}</y>")
-
-        except Exception as e:
-            logger.error(f"{self.session_name} | Error joining/muting channel {link}: {str(e)}")
-
-        finally:
-            if self.tg_client.is_connected:
-                await self.tg_client.disconnect()
-
-        await asyncio.sleep(random.randint(10, 20))
-    
-    @error_handler
     async def get_tasks(self, http_client):
         return await self.make_request(http_client, 'GET', endpoint="/tasks/user", data={'group': 'cats'})
     
@@ -278,6 +237,10 @@ class Tapper:
                 
                 logger.info(f"{self.session_name} | <y>Successfully logged in</y>")
                 logger.info(f"{self.session_name} | User ID: <y>{user.get('id')}</y> | Telegram Age: <y>{user.get('telegramAge')}</y> | Points: <y>{user.get('totalRewards')}</y>")
+                
+                UserHasOgPass = user.get('hasOgPass', False)
+                logger.info(f"{self.session_name} | User has OG Pass: <y>{UserHasOgPass}</y>")
+                
                 data_task = await self.get_tasks(http_client=http_client)
                 if data_task is not None and data_task.get('tasks', {}):
                     for task in data_task.get('tasks'):
@@ -288,9 +251,6 @@ class Tapper:
                         title = task.get('title')
                         reward = task.get('rewardPoints')
                         type_=('check' if type == 'SUBSCRIBE_TO_CHANNEL' else 'complete')
-                        #if type_ == 'check':
-                        #    await self.join_and_mute_tg_channel(link=task.get('params').get('channelUrl'))
-                        #    await asyncio.sleep(2)
                         done_task = await self.done_tasks(http_client=http_client, task_id=id, type_=type_)
                         if done_task and (done_task.get('success', False) or done_task.get('completed', False)):
                             logger.info(f"{self.session_name} | Task <y>{title}</y> done! Reward: {reward}")
@@ -298,9 +258,13 @@ class Tapper:
                 else:
                     logger.error(f"{self.session_name} | No tasks")
                 
-                reward = await self.send_cats(http_client=http_client)
-                if reward:
-                    logger.info(f"{self.session_name} | Reward from Avatar quest: <y>{reward}</y>")
+                
+            
+                for _ in range(3 if UserHasOgPass else 1):
+                    reward = await self.send_cats(http_client=http_client)
+                    if reward:
+                        logger.info(f"{self.session_name} | Reward from Avatar quest: <y>{reward}</y>")
+                    await asyncio.sleep(random.randint(5, 7))
                 
                 
                 await http_client.close()
