@@ -2,6 +2,7 @@ import asyncio
 import random
 from urllib.parse import unquote
 import uuid
+from time import time
 
 import aiohttp
 from aiohttp_proxy import ProxyConnector
@@ -198,13 +199,13 @@ class Tapper:
         proxy_conn = ProxyConnector().from_url(self.proxy) if self.proxy else None
         http_client = aiohttp.ClientSession(headers=headers, connector=proxy_conn)
         
-        ref_id, init_data = await self.get_tg_web_data()
-        if not init_data:
-            if not http_client.closed:
-                await http_client.close()
-            if proxy_conn:
-                if not proxy_conn.closed:
-                    proxy_conn.close()
+        # ref_id, init_data = await self.get_tg_web_data()
+        # if not init_data:
+        #     if not http_client.closed:
+        #         await http_client.close()
+        #     if proxy_conn:
+        #         if not proxy_conn.closed:
+        #             proxy_conn.close()
 
         if self.proxy:
             await self.check_proxy(http_client=http_client)
@@ -212,6 +213,7 @@ class Tapper:
         if settings.FAKE_USERAGENT:            
             http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
 
+        token_expiration = 0
         while True:
             try:
                 if http_client.closed:
@@ -224,20 +226,24 @@ class Tapper:
                     if settings.FAKE_USERAGENT:            
                         http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
                 
-                http_client.headers['Authorization'] = f"tma {init_data}"
+                current_time = time()
+                if current_time >= token_expiration:
+                    if (token_expiration != 0): # Чтобы не пугались, скрою от вас когда происходит первый запуск
+                        logger.info(f"{self.session_name} | Token expired, refreshing...")
+                    ref_id, init_data = await self.get_tg_web_data()
+                    http_client.headers['Authorization'] = f"tma {init_data}"
+                    user = await self.login(http_client=http_client, ref_id=ref_id)
                 
-                user = await self.login(http_client=http_client, ref_id=ref_id)
-                if not user:
-                    logger.error(f"{self.session_name} | Failed to login")
-                    await http_client.close()
-                    if proxy_conn:
-                        if not proxy_conn.closed:
-                            proxy_conn.close()
-                    continue
+                    if not user:
+                        logger.error(f"{self.session_name} | Failed to login")
+                        logger.info(f"{self.session_name} | Sleep <y>300s</y>")
+                        await asyncio.sleep(delay=300)
+                        continue
+                    else:
+                        logger.info(f"{self.session_name} | <y>Successfully logged in</y>")
+                        token_expiration = current_time + 3600
                 
-                logger.info(f"{self.session_name} | <y>Successfully logged in</y>")
                 logger.info(f"{self.session_name} | User ID: <y>{user.get('id')}</y> | Telegram Age: <y>{user.get('telegramAge')}</y> | Points: <y>{user.get('totalRewards')}</y>")
-                
                 UserHasOgPass = user.get('hasOgPass', False)
                 logger.info(f"{self.session_name} | User has OG Pass: <y>{UserHasOgPass}</y>")
                 
@@ -254,7 +260,6 @@ class Tapper:
                         done_task = await self.done_tasks(http_client=http_client, task_id=id, type_=type_)
                         if done_task and (done_task.get('success', False) or done_task.get('completed', False)):
                             logger.info(f"{self.session_name} | Task <y>{title}</y> done! Reward: {reward}")
-                                
                 else:
                     logger.error(f"{self.session_name} | No tasks")
                 
