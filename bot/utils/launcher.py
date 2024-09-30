@@ -82,7 +82,7 @@ async def process() -> None:
 
     logger.info(f"Detected {len(get_session_names())} sessions | {len(get_proxies())} proxies")
 
-    action = parser.parse_args().action
+    action = 1
 
     if not action:
         logger.info(start_text)
@@ -99,8 +99,7 @@ async def process() -> None:
                 break
 
     if action == 1:
-        tg_clients = await get_tg_clients()
-
+        tg_clients = load_data('bot/config/data.txt')
         await run_tasks(tg_clients=tg_clients)
 
     elif action == 2:
@@ -111,6 +110,7 @@ async def process() -> None:
 
 async def run_tasks(tg_clients: list[Client]):
     proxies = get_proxies()
+    print('Proxies', proxies)
     proxies_cycle = cycle(proxies) if proxies else None
     tasks = [
         asyncio.create_task(
@@ -123,3 +123,13 @@ async def run_tasks(tg_clients: list[Client]):
     ]
 
     await asyncio.gather(*tasks)
+
+def load_data(file):
+    datas = [i for i in open(file).read().splitlines() if len(i) > 0]
+    if len(datas) <= 0:
+        print(
+            f"{merah}0 account detected from {file}, fill your data in {file} first !{reset}"
+        )
+        sys.exit()
+
+    return datas
